@@ -3,8 +3,8 @@
 
 ## Description
 Tool for creating mines. The script can be used from command line for unmodded saves.
-Use: Get a mine planner blueprint from the mod's gui then place it over an ore patch. The mod plans drills preferring longevity over initial speed, merges output into full belts, connects them with poles and pipes respecting obstacles.
-Aim: Blueprints based outposts result in numerous drills that will deplete quickly. Manaully removing useless drills, fixing obstacle issues and making a good merger is tedious after a while. Automating this process allows you to focus on other aspects of the game.
+Use: Get a mine planner blueprint from the mod's GUI then place it over an ore patch. The mod plans drills preferring longevity over initial speed, merges output into full belts, connects them with poles and pipes respecting obstacles.
+Aim: Blueprints based outposts result in numerous drills that will deplete quickly. Manually removing useless drills, fixing obstacle issues and making a good merger is tedious after a while. Automating this process allows you to focus on other aspects of the game.
 
 ## Examples
 ![alt text](example1.gif)
