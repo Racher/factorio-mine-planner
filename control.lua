@@ -1,17 +1,17 @@
 local function build_main(params)
-    local surface=params.player.surface
-    local print=params.player.print
+    local player=params.player
+    local surface=player.surface
+    local print=player.print
+    local force=player.force
     local min=math.min
     local max=math.max
     local ceil=math.ceil
     local floor=math.floor
-    local math_log=math.log
     local exp=math.exp
     local pow=math.pow
     local sqrt=math.sqrt
     local insert=table.insert
     local function remainder(l,r) return l-floor(l/r)*r end
-    params.prod=params.prod or (1+(params.player.force.mining_drill_productivity_bonus or 0))
     local drill_props={consumption=1,pollution=1,productivity=params.prod,speed=1}
     local drill_module_items
     for _,module in pairs(params.modules) do
@@ -243,7 +243,7 @@ local function build_main(params)
         for i=1,area_index_max do
             local a=area_ores[i]
             if a>0 then
-                local lifelog=floor(math_log(a,base))
+                local lifelog=floor(math.log(a,base))
                 distrib[lifelog]=(distrib[lifelog] or 0)+1
             end
         end
@@ -430,10 +430,9 @@ local function build_main(params)
         return lefta, left
     end
     local function build_entities(entities)
-        local force=params.player.force
         if not params.sandbox then
             local stack
-            local inv=params.player.get_main_inventory()
+            local inv=player.get_main_inventory()
             for _=1,2 do
                 for i=1,#inv do
                     local s=inv[i]
@@ -444,7 +443,7 @@ local function build_main(params)
                 if stack then
                     break
                 end
-                params.player.get_main_inventory().insert{name='blueprint'}
+                inv.insert{name='blueprint'}
             end
             assert(stack)
             for _,entity in pairs(entities) do
@@ -589,7 +588,7 @@ local function build_main(params)
     end
     local function add_part(i,v)
         if area_obstacles[i]~=0 then
-            surface.create_entity{name=params.pole_name,position=area_index_to_pos(i),force=params.player.force}
+            surface.create_entity{name=params.pole_name,position=area_index_to_pos(i),force=force}
         end
         assert(area_obstacles[i]==0,'attempt to place on taken'..v)
         area_obstacles[i]=v
