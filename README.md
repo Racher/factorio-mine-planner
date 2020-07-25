@@ -16,7 +16,6 @@ The content of control.lua can be copied into the command line even without the 
 (The mine blueprint, not the planner. Without the mod/script the planner is just a tile blueprint)
 
 ## Limitations
-- Electric mining drill, it's size and mining area are hard coded.
 - Performance limitation: impractically slow on huge ore patches.
 - Imperfect clogging approximation: significant margin(overproduction) to ensure - full belts.
 - Needs wide, clear rows for the merger.
@@ -26,7 +25,7 @@ The content of control.lua can be copied into the command line even without the 
 - Mine evaluation is debatable.
 
 ## Mine evaluation
-Over time, drills will deplete. A value of the output might also decrease as the mine/resource is no longer wanted. The drills, infrastructure and space might not worth the reduced, out-teched and outgrown output anymore. In other words, an ore now is worth more than an ore hours from now. The decrese of value over time is modeled with ore value half-life.
+Over time, drills will deplete. A value of the output might also decrease as the mine/resource is no longer wanted. The drills, infrastructure and space might not worth the reduced, out-teched and outgrown output anymore. In other words, an ore now is worth more than an ore hours from now. The decrese of value over time is modeled with ore value half-life. This value is affected by the longevity slider.
 
 Secondly, short lived drills are avoided. Handling initial output results in overbuilding infrastructure. Otherwise, they will get output blocked. Output blocked drills are can be costly with high tier modules and are unelegant. Instead, the script prefers high minimum drill lifetime.
 
@@ -60,12 +59,12 @@ First, lane by lane starting from the drill furthers from merger. Poles are plac
 Then, electric network groups are identified, the closest groups are connected, until all poles worm a single group. This process is not optimized or well tested.
 
 ## Belts, pipes
-Each lane belt and drill column pipe it leads straight into the merger. Avoiding obstacles simply with minimum underground distance. Loaders are placed to indicate output.
+Each lane belt and drill column pipe leads straight into the merger. Avoiding obstacles simply with minimum underground distance. Loaders are placed to indicate output.
 
 ## Settings
 - Blueprint size: Replace the planned blueprint with different area limit
 - Mining productivity: The mining productivity the mine is designed for
-- Ore value half-life: Affect the number of drills (see Drill Placement)
+- Longevity: Affect the number of drills (see Drill Placement)
 - Output targets: A list of values. The drill placement will try to match the one it judges best.
-- Pole, belt and module selection
+- Pole, belt, drill and module selection
 - cheat_mode: the mod can place entities directly instead of ghosts. Adds electric and fluid source as needed, and drains the output. Allows testing the mod.

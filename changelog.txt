@@ -1,0 +1,11 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.2.0
+Date: 25.07.2020
+  Features:
+    - Added support for other mining drills
+  Changes:
+    - Changed half-life parameter to slider
+    - Changed output targets to be optional
+  Bugfixes:
+    - Fixed lifetime calculation
+    - Fixed a poling issue
