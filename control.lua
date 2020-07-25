@@ -1213,8 +1213,8 @@ local function setup_gui(player)
     opfields.add{type='textfield',numeric=true,text=67,tooltip='Blueprint size'}
     opfields.add{type='label',caption='mining productivity[10%]',tooltip='Mining productivity from research\nNo research => 0\nMining Productivity 1 => 1'}
     opfields.add{type='textfield',numeric=true,text=(player.force.mining_drill_productivity_bonus or 0)*10}
-    opfields.add{type='label',caption='ore value half-life[min]',tooltip='The drill placement script makes a judgement: initial output vs longevity\nlow half-life => more output quicker depletion\nhigh half-life => less output later depletion'}
-    opfields.add{type='textfield',numeric=true,text=90}
+    opfields.add{type='label',caption='longevity',tooltip='Affect the drill placement script output choice of drill count (initial output vs longevity)'}
+    opfields.add{type='slider',minimum_value=-5,maximum_value=5,value=0.00000001,value_step=1}
     opfields.add{type='checkbox',caption='output targets [belt]',tooltip='These number of output belts are targeted',state=false}
     opfields.add{type='textfield',text='0.5,1,1.5,2,3,4,6,8,10,12,14,16'}
     local opelems=options.add{type='table',column_count=7}
@@ -1250,7 +1250,7 @@ local function read_params(player)
         belt_name=options[2].children[2].elem_value,
         drill_name=options[2].children[3].elem_value,
         prod=1+tonumber(opcol[4].text)/10,
-        halflife=tonumber(opcol[6].text),
+        halflife=tonumber(math.pow(2,opcol[6].slider_value)*120),
         sweetspots=sweetspots,
         modules=modules,
         sandbox=options[3].state
