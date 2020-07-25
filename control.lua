@@ -442,7 +442,11 @@ local function build_main(params)
         end
     end
     local function find_sweet_amount()
-        local peak_speed=build_drill_speed(find_peak())
+        local peak_amount=find_peak()
+        local peak_speed=build_drill_speed(peak_amount)
+        if not params.sweetspots then
+            return peak_amount, peak_speed
+        end
         local left,right
         for _,u in pairs(params.sweetspots) do
             local v=2*u
@@ -1211,7 +1215,7 @@ local function setup_gui(player)
     opfields.add{type='textfield',numeric=true,text=(player.force.mining_drill_productivity_bonus or 0)*10}
     opfields.add{type='label',caption='ore value half-life[min]',tooltip='The drill placement script makes a judgement: initial output vs longevity\nlow half-life => more output quicker depletion\nhigh half-life => less output later depletion'}
     opfields.add{type='textfield',numeric=true,text=90}
-    opfields.add{type='label',caption='output targets [belt]',tooltip='These number of output belts are targeted'}
+    opfields.add{type='checkbox',caption='output targets [belt]',tooltip='These number of output belts are targeted',state=false}
     opfields.add{type='textfield',text='0.5,1,1.5,2,3,4,6,8,10,12,14,16'}
     local opelems=options.add{type='table',column_count=7}
     opelems.add{type='choose-elem-button',elem_type='item',item='small-electric-pole',elem_filters={{filter='subgroup',subgroup='energy-pipe-distribution'}}}
@@ -1234,9 +1238,12 @@ local function read_params(player)
         end
     end
     local opcol=options[1].children
-    local sweetspots=game.json_to_table('['..opcol[8].text..']')
-    assert(sweetspots,'invalid sweetspots')
-    table.sort(sweetspots)
+    local sweetspots
+    if opcol[7].state then
+        sweetspots=game.json_to_table('['..opcol[8].text..']')
+        assert(sweetspots,'invalid sweetspots')
+        table.sort(sweetspots)
+    end
     return {
         player=player,
         pole_name=options[2].children[1].elem_value,
