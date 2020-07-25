@@ -27,15 +27,16 @@ local function build_main(params)
     local ubelt_name=params.belt_name and params.belt_name:gsub('transport','underground')
     local loader_name=params.belt_name and params.belt_name:gsub('transport%-belt','loader')
     local splitter_name=params.belt_name and params.belt_name:gsub('transport%-belt','splitter')
-    local drill_name='electric-mining-drill'
-    drill_props.speed=drill_props.speed*game.entity_prototypes[drill_name].mining_speed*60
-    drill_props.consumption=drill_props.consumption*game.entity_prototypes[drill_name].max_energy_usage*60
+    local drill_name=params.drill_name
+    local drill_proto=game.entity_prototypes[drill_name]
+    drill_props.speed=drill_props.speed*drill_proto.mining_speed
+    drill_props.consumption=drill_props.consumption*drill_proto.max_energy_usage*60
     local supply_area_distance=floor(game.entity_prototypes[params.pole_name].supply_area_distance)
     local max_wire_distance=game.entity_prototypes[params.pole_name].max_wire_distance
-    local amount_halflife=params.halflife*drill_props.speed*2
+    local amount_halflife=params.halflife*drill_props.speed*60
     local drills_per_belt
     local buffer=drill_props.productivity==1 and 0 or 0.026
-    local density_iterations=3
+    local density_iterations=4
     local build_iterations=10
     local function drill_line_speed(drills)
         assert(drills==floor(drills) or drills==0.5,'drill_line_speed '..drills)
@@ -45,8 +46,20 @@ local function build_main(params)
         end
         return min(drills,1)
     end
+    local function measure_cb(proto)
+        local cb2=proto.collision_box['right_bottom']
+        local cb1=proto.collision_box['left_top']
+        local sx=math.ceil(cb2.x-cb1.x)
+        local sy=math.ceil(cb2.y-cb1.y)
+        local function f(s) return s/2+0.5-math.floor(s/2+0.5) end
+        return sx,sy,{f(sx),f(sy)}
+    end
     local drill_count_lane_max
-
+    
+    local drill_s,drill_sy,drill_off=measure_cb(drill_proto)
+    local drill_s_max=floor(drill_s/2)
+    local drill_s_min=floor(1-drill_s/2)
+    assert(drill_s==drill_sy,'unexpected drill shape')
     local direction=params.direction
     local area_s=params.size
     local area_index_max=area_s*area_s
@@ -59,25 +72,41 @@ local function build_main(params)
     local area_ores={}
     local density_cache={}
     local density_cache2={}
+    for i=1,area_index_max do
+        density_cache[i]=0
+        density_cache2[i]=0
+    end
     local build_cache_results={}
     local build_cache_drills={}
     local area_obstacles={}
     local area_drills_candidates={}
-    local area_mining_indicies={} for a=-2,2 do for b=-2,2 do insert(area_mining_indicies,a+b*area_s) end end
+    local minin_rad_min=-ceil(drill_proto.mining_drill_radius-drill_off[1]-0.5)
+    local minin_rad_max=ceil(drill_proto.mining_drill_radius+drill_off[1]-0.5)
+    local mining_s=minin_rad_max-minin_rad_min+1
+    local mining_own_tilecount=min(mining_s,drill_s+0.5)*drill_s
+    assert(mining_s==ceil(2*drill_proto.mining_drill_radius),'mining_drill_radius')
+    local area_mining_indicies={} for a=minin_rad_min,minin_rad_max do for b=minin_rad_min,minin_rad_max do insert(area_mining_indicies,a+b*area_s) end end
     local area_l_min
     local area_l_max
     local area_required_fluid
     local area_l_bmax={}
-    local area_p_bmax={}
     local function get_a(i) return remainder(floor(i)-1,area_s) end
     local function get_b(i) return ceil(i/area_s)-1 end
-    local function get_l(i) assert(floor(area_obstacles[i])==1,'getl') return get_a(i)+remainder(area_obstacles[i]*8+4,8)-4 end
+    local function get_drill_out(i)
+        assert(floor(area_obstacles[i])==1,'get_drill_out not drill')
+        local dir=remainder(area_obstacles[i]*8,8)
+        return i+(dir<4 and 1-drill_s_min or drill_s_min-1)
+    end
+    local function get_l(i)
+        assert(floor(area_obstacles[i])==1,'getl')
+        return get_a(get_drill_out(i))
+    end
     local function get_i(a,b) assert(a>=0 and a<area_s and b>=0 and b<area_s,'geti') return 1+a+b*area_s end
     local function area_index_to_pos(i) local a=get_a(i) local b=get_b(i) return {x0+dx_da*a+dx_db*b,y0+dy_da*a+dy_db*b} end
     local function pos_add(a,b) return {a[1]+b[1],a[2]+b[2]} end
     local function box(p) return {{p[1]-0.4,p[2]-0.4},{p[1]+0.4,p[2]+0.4}} end
     do
-        local function find_resource_cat(e) for k,v in pairs(game.entity_prototypes[drill_name].resource_categories) do if v and k==e then return k end end end
+        local function find_resource_cat(e) for k,v in pairs(drill_proto.resource_categories) do if v and k==e then return k end end end
         local minable_names={}
         for _,v in pairs(game.entity_prototypes) do
             if v.resource_category and find_resource_cat(v.resource_category) then
@@ -104,7 +133,7 @@ local function build_main(params)
             productcount=productcount+prod.probability*prod.amount
         end
         area_required_fluid=mineable_properties.required_fluid
-        drills_per_belt=game.entity_prototypes[params.belt_name].belt_speed*14400/drill_props.speed/drill_props.productivity*miningtime/productcount
+        drills_per_belt=game.entity_prototypes[params.belt_name].belt_speed*240/drill_props.speed/drill_props.productivity*miningtime/productcount
         drill_count_lane_max=1
         while drill_line_speed(drill_count_lane_max+1)>=drill_line_speed(drill_count_lane_max)+drill_line_speed(0.5) do
             drill_count_lane_max=drill_count_lane_max+1
@@ -112,15 +141,9 @@ local function build_main(params)
         end
         for i=1,area_index_max do
             local ore=surface.find_entities_filtered{area=box(area_index_to_pos(i)),name=ore_name}[1]
-            insert(area_ores,ore and ore.amount or 0)
-        end
-        for i=1,area_index_max do
+            local anyore=surface.find_entities_filtered{area=box(area_index_to_pos(i)),name=minable_names}[1]
+            insert(area_ores,ore and ore.amount or anyore and -1 or 0)
             insert(area_obstacles,surface.can_place_entity{name=params.belt_name,position=area_index_to_pos(i),build_check_type=defines.build_check_type.ghost_place} and 0 or -1)
-        end
-        local area_other_ores={}
-        for i=1,area_index_max do
-            local ore=surface.find_entities_filtered{area=box(area_index_to_pos(i)),name=minable_names}[1]
-            insert(area_other_ores, ore and ore.name~=ore_name or false)
         end
         local area_l_limits={}
         for da=-1,1,2 do
@@ -132,11 +155,8 @@ local function build_main(params)
                     end
                 end
                 if area_required_fluid then
-                    if a-2<0 or a+2>=area_s then
-                        return true
-                    end
-                    for _a=a-2,a+2 do
-                        if area_obstacles[get_i(_a,4)]~=0 then
+                    for _a=a-1-drill_s_max,a+1-drill_s_min do
+                        if _a<0 or _a>=area_s or area_obstacles[get_i(_a,4)]~=0 then
                             return true
                         end
                     end
@@ -155,14 +175,11 @@ local function build_main(params)
             local b=bfrom
             if area_obstacles[get_i(l,bfrom+1)]==0 then
                 local function free(_b)
-                    return area_obstacles[get_i(l,_b)]==0 and (area_obstacles[get_i(l,_b-1)]==0 or area_obstacles[get_i(l,_b+1)]==0)
+                    return area_obstacles[get_i(l,_b)]==0 and (area_obstacles[get_i(l,_b-1)]==0 or _b+1>=area_s or area_obstacles[get_i(l,_b+1)]==0)
                 end
                 local function next()
-                    if b>=area_s-3 then
-                        return false
-                    end
-                    if free(b+1) then
-                        if free(b+2) then
+                    if b+1<area_s and free(b+1) then
+                        if b+2>=area_s or free(b+2) then
                             b=b+1
                             return true
                         end
@@ -182,27 +199,31 @@ local function build_main(params)
         end
         local max_underground_distance=game.entity_prototypes[ubelt_name].max_underground_distance
         local max_underground_distance_pipe=game.entity_prototypes['pipe-to-ground'].max_underground_distance
+        local area_p_bmax={}
         for l=0,area_s-1 do
             insert(area_l_bmax,under_bmax(l,3,max_underground_distance))
             insert(area_p_bmax, area_required_fluid and under_bmax(l,4,max_underground_distance_pipe) or area_s-1)
         end
         for i=1,area_index_max do
-            if get_b(i)>=5+(area_required_fluid and 1 or 0) and get_b(i)<area_s-2 and get_a(i)>=max(area_l_min-2,2) and get_a(i)<=min(area_l_max+2,area_s-3) then
+            if get_b(i)>=4-drill_s_min+(area_required_fluid and 1 or 0)
+             and get_b(i)<area_s-minin_rad_max
+             and get_a(i)>=max(area_l_min-drill_s_max-1,-minin_rad_min)
+             and get_a(i)<=min(area_l_max-drill_s_min+1,area_s-1-minin_rad_max)
+             and (not area_required_fluid or get_b(i)<area_p_bmax[get_a(i)+1]
+                                                and (area_obstacles[i+(drill_s_max+1)*area_s] or 0)==0
+                                                and (area_obstacles[i+(drill_s_min-1)*area_s] or 0)==0) then
                 local ownore=false
                 local otherore=false
                 local blocked=false
                 for id=1,#area_mining_indicies do
                     local di=i+area_mining_indicies[id]
                     ownore=ownore or area_ores[di]>0
-                    otherore=otherore or area_other_ores[di]
+                    otherore=otherore or area_ores[di]<0
                 end
-                for da=-1,1 do
-                    for db=-1,1 do
+                for da=drill_s_min,drill_s_max do
+                    for db=drill_s_min,drill_s_max do
                         blocked=blocked or area_obstacles[i+da+db*area_s]~=0
                     end
-                end
-                if area_required_fluid then
-                    blocked=blocked or area_obstacles[i+2*area_s]~=0 or area_obstacles[i-2*area_s]~=0
                 end
                 if ownore and not blocked and not otherore then
                     insert(area_drills_candidates,i)
@@ -211,9 +232,10 @@ local function build_main(params)
         end
     end
     local function calc_density(amount)
-        for i=1,area_index_max do
-            density_cache[i]=0
-            density_cache2[i]=0
+        local build_dens_max=#area_mining_indicies/mining_own_tilecount
+        for ci=1,#area_drills_candidates do
+            local i=area_drills_candidates[ci]
+            density_cache[i]=0.75
         end
         for _=1,density_iterations do
             for ci=1,#area_drills_candidates do
@@ -221,16 +243,21 @@ local function build_main(params)
                 local acc=0
                 for ni=1,#area_mining_indicies do
                     local j=i+area_mining_indicies[ni]
-                    local d=density_cache[j]
-                    assert(d,j)
-                    d=min(d,2)
-                    d=max(d,1)
-                    acc=acc+area_ores[j]/d
+                    acc=acc+area_ores[j]/max(1,min(density_cache[j],build_dens_max))
                 end
-                acc=min(acc/amount,3)
+                acc=min(acc/amount,build_dens_max*1.33)
                 density_cache2[i]=density_cache[i]*0.25+acc*0.75
             end
             density_cache,density_cache2=density_cache2,density_cache
+        end
+        local gapmax=mining_s
+        local gapmin=drill_s
+        local build_dens_min=mining_s/min(drill_s+0.5,mining_s)
+        for ci=1,#area_drills_candidates do
+            local i=area_drills_candidates[ci]
+            assert(density_cache[i]>0,'density_cache')
+            local l=min(1,(density_cache[i]-build_dens_min)/(build_dens_max-build_dens_min))
+            density_cache[i]=l>0 and floor(gapmax+l*(gapmin-gapmax)) or 0
         end
         return density_cache
     end
@@ -262,49 +289,53 @@ local function build_main(params)
             local c=calc_value(amount,count)
             if not best_c or c>best_c then
                 best_c=c
-                best_a=amount*10
+                best_a=amount*mining_own_tilecount
             end
         end
         return best_a
+    end
+    local function drill_l_blocked(l,b)
+        if b<2 or b>area_l_bmax[l+1] then
+            return true
+        end
+        for _b=drill_proto.electric_energy_source_prototype and b-2 or b,b do
+            if area_obstacles[get_i(l,_b)]~=0 then
+                return true
+            end
+        end
     end
     local function build_drills(amount, limit)
         if not amount or amount<=0 then
             return not limit and 0
         end
-        local build_dens_min=10.0/7
-        local build_dens_mid=1+build_dens_min/2
+        local lane_d = 2*drill_s+1;
         local density=calc_density(amount)
         local best_speed=-1
-        for off=0,6 do
+        for off=0,lane_d-1 do
             while #build_cache_drills>0 do
                 build_cache_drills[#build_cache_drills]=nil
             end
             local speed=0
             local carry=0
-            for l=area_l_min+off,area_l_max,7 do
-                for a=l-2,l+2,4 do
+            for l=area_l_min+off,area_l_max,lane_d do
+                for a=l-drill_s_max-1,l-drill_s_min+1,drill_s+1 do
                     if a>=1 and a<area_s-1 then
                         local drill_count_lane=#build_cache_drills
                         local _b=-10
-                        local _d=2
-                        local ddir=remainder(l-a,8)/8
-                        for b=5+(area_required_fluid and 1 or 0),min(area_s-3,min(area_l_bmax[l+1], area_p_bmax[a+1]+2)) do
-                            if area_obstacles[get_i(l,b)]==0 and area_obstacles[get_i(l,b-1)]==0 and area_obstacles[get_i(l,b-2)]==0 and area_obstacles[get_i(l/2+a/2,b-2)]==0 then
-                                local d=density[get_i(a,b)]
-                                local d1=density[get_i(a,b+1)]
-                                local gap=max(3,5-(min(d,_d)-build_dens_min)/(1-build_dens_min/2))
-                                if d>=build_dens_min and b>=_b+gap and (d>build_dens_mid or d1 and d1<2) then
-                                    _d=d
-                                    _b=b
-                                    carry=carry-drill_line_speed(#build_cache_drills-drill_count_lane)
-                                    insert(build_cache_drills,get_i(a,b)+ddir)
-                                    carry=carry+drill_line_speed(#build_cache_drills-drill_count_lane)
-                                    if limit and speed+carry-buffer>=limit-0.0001 then
-                                        return build_cache_drills
-                                    end
-                                    if #build_cache_drills-drill_count_lane>=drill_count_lane_max then
-                                        break
-                                    end
+                        local ddir=(l>a and 0.25+2*drill_off[1] or 0.75+2*drill_off[1]*area_s)
+                        local ob=ddir>4 and 2*drill_off[1] or 0
+                        for b=4-drill_s_min+(area_required_fluid and 1 or 0),area_s-1-drill_s_max do
+                            local d=density[get_i(a,b)]
+                            if b>=_b and d>=1 and not drill_l_blocked(l,b+ob) and (drill_l_blocked(l,b+ob+1) or density[get_i(a,b+1)]~=d-1) then
+                                _b=b+d
+                                carry=carry-drill_line_speed(#build_cache_drills-drill_count_lane)
+                                insert(build_cache_drills,get_i(a,b)+ddir)
+                                carry=carry+drill_line_speed(#build_cache_drills-drill_count_lane)
+                                if limit and speed+carry-buffer>=limit-0.0001 then
+                                    return build_cache_drills
+                                end
+                                if #build_cache_drills-drill_count_lane>=drill_count_lane_max then
+                                    break
                                 end
                             end
                         end
@@ -445,10 +476,10 @@ local function build_main(params)
                 end
                 inv.insert{name='blueprint'}
             end
-            assert(stack)
+            assert(stack,'stack')
             for _,entity in pairs(entities) do
                 if drill_module_items and entity.name==drill_name then
-                    stack.set_blueprint_entities({{entity_number=1,name='electric-mining-drill',position={x=0,y=0},items=drill_module_items}})
+                    stack.set_blueprint_entities({{entity_number=1,name=drill_name,position={x=0,y=0},items=drill_module_items}})
                     stack.build_blueprint{surface=surface,position=entity.position,direction=entity.direction,force=force}
                 else
                     entity.inner_name=entity.name
@@ -485,8 +516,11 @@ local function build_main(params)
         local drills=build_drills(amount, speed)
         assert(drills and not tonumber(drills) and #drills>0, 'build drills failed')
         for _,drill in pairs(drills) do
-            for da=-1,1 do
-                for db=-1,1 do
+            local dir=remainder(drill*8,8);
+            local o=drill_off[1]
+            drill=drill-o*(dir>4 and area_s or 1)*2
+            for da=drill_s_min,drill_s_max do
+                for db=drill_s_min,drill_s_max do
                     area_obstacles[get_i(get_a(drill)+da,get_b(drill)+db)]=-2
                 end
             end
@@ -546,12 +580,12 @@ local function build_main(params)
     end
     local function get_boff()
         local function oki(a,b)
-            return area_obstacles[get_i(a,b)]==0 or area_obstacles[get_i(a,b)]==-2
+            return area_obstacles[get_i(a,b)]==0
         end
         local boffmax=area_s-1
         for i=1,area_index_max do
             if floor(area_obstacles[i])==1 then
-                boffmax=min(boffmax,get_b(i)-5)
+                boffmax=min(boffmax,get_b(i))
             end
         end
         local lanes=get_lanes()
@@ -567,7 +601,9 @@ local function build_main(params)
                 end
                 if area_required_fluid then
                     for _,a in pairs(lines) do
-                        if not oki(a,boff+5) then
+                        local v=floor(area_obstacles[get_i(a,boff+5)])
+                        local pok=v==-2 or v==0 or v==1
+                        if not pok then
                             return false
                         end
                     end
@@ -660,10 +696,12 @@ local function build_main(params)
         add_part(right+2*area_s,-2)
         add_part(right+1*area_s,9)
     end
-    local function make_mergers(speed)
+    local function make_mergers(speed,boff)
+        if drill_s~=3 then
+            return
+        end
         local lanes=get_lanes()
         assert(#lanes>0,'no lanes')
-        local boff=get_boff()
         if #lanes==1 or speed<=1 then
             make_merger_single(get_i(lanes[1],boff),get_i(lanes[#lanes],boff))
         else
@@ -699,13 +737,14 @@ local function build_main(params)
         if not area_required_fluid then
             return
         end
+        local lane_d=2*drill_s+1
         local lines={}
         local lanes={}
         local l0
         for i=1,area_index_max do
             if floor(area_obstacles[i])==1 then
                 lines[get_a(i)]=max(lines[get_a(i)] or 0, get_b(i))
-                l0=remainder(get_l(i),7)
+                l0=remainder(get_l(i),lane_d)
                 lanes[get_l(i)]=true
             end
         end
@@ -719,9 +758,9 @@ local function build_main(params)
             end
             for b=5+boff,v do
                 local i=get_i(k,b)
-                if area_obstacles[i]==6 and floor(area_obstacles[i+2*area_s])~=1 and area_obstacles[i+area_s]~=6 then
+                if area_obstacles[i]==6 and area_obstacles[i+area_s]==-1 then
                     area_obstacles[i]=7
-                elseif area_obstacles[i]==6 and floor(area_obstacles[i-2*area_s])~=1 and area_obstacles[i-area_s]~=6 then
+                elseif area_obstacles[i]==6 and area_obstacles[i-area_s]==-1 then
                     area_obstacles[i]=7.5
                 end
             end
@@ -739,10 +778,10 @@ local function build_main(params)
         if #as>0 and #ls>0 then
             for a=as[1],as[#as] do
                 local i=get_i(a,4+boff)
-                if remainder(a,7)==l0 then
-                elseif remainder(a-1,7)==l0 then
+                if remainder(a,lane_d)==l0 then
+                elseif remainder(a-1,lane_d)==l0 then
                     area_obstacles[i]=7.25
-                elseif remainder(a+1,7)==l0 then
+                elseif remainder(a+1,lane_d)==l0 then
                     area_obstacles[i]=7.75
                 else
                     area_obstacles[i]=6
@@ -754,6 +793,9 @@ local function build_main(params)
         end
     end
     local function make_poles_lanes()
+        if not drill_proto.electric_energy_source_prototype then
+            return
+        end
         do
             local mina=area_s-1
             local maxa=0
@@ -855,6 +897,9 @@ local function build_main(params)
         end
     end
     local function make_belts(boff)
+        if drill_s~=3 then
+            return
+        end
         local lanes={}
         for d=1,area_index_max do
             if floor(area_obstacles[d])==1 then
@@ -1050,12 +1095,13 @@ local function build_main(params)
         loose_block(i+1+area_s)
     end
     local speed=make_drills()
-    local boff=make_mergers(speed)
+    local boff=get_boff()
+    make_mergers(speed,boff)
     make_pipes(boff)
     make_poles_lanes()
     make_belts(boff)
     make_poles_conn()
-    if params.sandbox then
+    if params.sandbox and drill_proto.electric_energy_source_prototype then
         make_elec_interface()
     end
     local entities={}
@@ -1064,7 +1110,8 @@ local function build_main(params)
         local v=floor(area_obstacles[i])
         local subtype=remainder(area_obstacles[i]*4,1)
         if v==1 then
-            insert(entities,{name=drill_name,position=area_index_to_pos(i),direction=dir})
+            local off=drill_off for _=1,dir/2 do off={-off[2],off[1]} end
+            insert(entities,{name=drill_name,position=pos_add(area_index_to_pos(i),off),direction=dir})
         elseif v==2 then
             insert(entities,{name=params.pole_name,position=area_index_to_pos(i)})
         elseif v==3 then
@@ -1169,7 +1216,7 @@ local function setup_gui(player)
     local opelems=options.add{type='table',column_count=7}
     opelems.add{type='choose-elem-button',elem_type='item',item='small-electric-pole',elem_filters={{filter='subgroup',subgroup='energy-pipe-distribution'}}}
     opelems.add{type='choose-elem-button',elem_type='item',item='transport-belt',elem_filters={{filter='subgroup',subgroup='belt'}}}
-    opelems.add{type='sprite',sprite='entity/electric-mining-drill'}
+    opelems.add{type='choose-elem-button',elem_type='entity',entity='electric-mining-drill',elem_filters={{filter='type',type='mining-drill'}}}
     local ceb=opelems.add{type='choose-elem-button',elem_type='item',elem_filters={{filter='type',type='module'}}}
     opelems.add{type='button',caption='->',style=ceb.style.name,tooltip='copy module'}
     opelems.add{type='choose-elem-button',elem_type='item',elem_filters={{filter='type',type='module'}}}
@@ -1194,6 +1241,7 @@ local function read_params(player)
         player=player,
         pole_name=options[2].children[1].elem_value,
         belt_name=options[2].children[2].elem_value,
+        drill_name=options[2].children[3].elem_value,
         prod=1+tonumber(opcol[4].text)/10,
         halflife=tonumber(opcol[6].text),
         sweetspots=sweetspots,
