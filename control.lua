@@ -641,6 +641,7 @@ local function build_main(params)
         add_part(i+2*area_s+2,3.25)
         add_part(i+3*area_s,5)
         add_part(i+3*area_s+1,-2)
+        add_part(i+4*area_s,3)
     end
     local function make_merger_out(i,left,right)
         add_part(i+2*area_s,3)
@@ -651,6 +652,7 @@ local function build_main(params)
         add_part(i+2*area_s-3,3)
         add_part(i+3*area_s-1,5)
         add_part(i+3*area_s,-2)
+        add_part(i+4*area_s,3)
         add_part(i+area_s-3,5+6/64)
         add_part(i+area_s-2,-2)
         if left then
@@ -697,6 +699,7 @@ local function build_main(params)
             add_part(a+3*area_s,3.25)
         end
         add_part(right+3*area_s,10)
+        add_part(right+4*area_s,3)
         add_part(right+2*area_s,-2)
         add_part(right+1*area_s,9)
     end
@@ -1213,9 +1216,9 @@ local function setup_gui(player)
     opfields.add{type='textfield',numeric=true,text=67,tooltip='Blueprint size'}
     opfields.add{type='label',caption='mining productivity[10%]',tooltip='Mining productivity from research\nNo research => 0\nMining Productivity 1 => 1'}
     opfields.add{type='textfield',numeric=true,text=(player.force.mining_drill_productivity_bonus or 0)*10}
-    opfields.add{type='label',caption='longevity',tooltip='Affect the drill placement script output choice of drill count (initial output vs longevity)'}
+    opfields.add{type='label',caption='longevity',tooltip='Affect the drill placement script output choice of drill count'}
     opfields.add{type='slider',minimum_value=-5,maximum_value=5,value=0.00000001,value_step=1}
-    opfields.add{type='checkbox',caption='output targets [belt]',tooltip='These number of output belts are targeted',state=false}
+    opfields.add{type='checkbox',caption='output targets [belt]',tooltip='Force exact number of output belts.\nIf set, the build script will try and exactly reach one of the output targets from the list.',state=false}
     opfields.add{type='textfield',text='0.5,1,1.5,2,3,4,6,8,10,12,14,16'}
     local opelems=options.add{type='table',column_count=7}
     opelems.add{type='choose-elem-button',elem_type='item',item='small-electric-pole',elem_filters={{filter='subgroup',subgroup='energy-pipe-distribution'}}}
