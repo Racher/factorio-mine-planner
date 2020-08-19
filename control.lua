@@ -1206,29 +1206,31 @@ local function find_gui(player)
     end
 end
 local function setup_gui(player)
-    local flow=find_gui(player)
-    if flow then flow.destroy() end
-    flow=player.gui.top.add{type='flow',direction='vertical'}
-    flow.add{type='button',caption='Mine Planner'..(script.mod_name=='level' and '*' or '')}
-    local options=flow.add{type='frame',direction='vertical',visible=false}
-    local opfields=options.add{type='table',column_count=2}
-    opfields.add{type='button',caption='planner blueprint',tooltip='Replaces the mine planner blueprint in the player inventory.\nPlace the blueprint trigger the script.'}
-    opfields.add{type='textfield',numeric=true,text=67,tooltip='Blueprint size'}
-    opfields.add{type='label',caption='mining productivity[10%]',tooltip='Mining productivity from research\nNo research => 0\nMining Productivity 1 => 1'}
-    opfields.add{type='textfield',numeric=true,text=(player.force.mining_drill_productivity_bonus or 0)*10}
-    opfields.add{type='label',caption='longevity',tooltip='Affect the drill placement script output choice of drill count'}
-    opfields.add{type='slider',minimum_value=-5,maximum_value=5,value=0.00000001,value_step=1}
-    opfields.add{type='checkbox',caption='output targets [belt]',tooltip='Force exact number of output belts.\nIf set, the build script will try and exactly reach one of the output targets from the list.',state=false}
-    opfields.add{type='textfield',text='0.5,1,1.5,2,3,4,6,8,10,12,14,16'}
-    local opelems=options.add{type='table',column_count=7}
-    opelems.add{type='choose-elem-button',elem_type='item',item='small-electric-pole',elem_filters={{filter='subgroup',subgroup='energy-pipe-distribution'}}}
-    opelems.add{type='choose-elem-button',elem_type='item',item='transport-belt',elem_filters={{filter='subgroup',subgroup='belt'}}}
-    opelems.add{type='choose-elem-button',elem_type='entity',entity='electric-mining-drill',elem_filters={{filter='type',type='mining-drill'}}}
-    local ceb=opelems.add{type='choose-elem-button',elem_type='item',elem_filters={{filter='type',type='module'}}}
-    opelems.add{type='button',caption='->',style=ceb.style.name,tooltip='copy module'}
-    opelems.add{type='choose-elem-button',elem_type='item',elem_filters={{filter='type',type='module'}}}
-    opelems.add{type='choose-elem-button',elem_type='item',elem_filters={{filter='type',type='module'}}}
-    options.add{type='checkbox',caption='cheat_mode',state=player.cheat_mode,tooltip='Create entities instead of ghosts. Add electric interface, infinity pipe, and infinity chests'}
+    pcall(function()
+        local flow=find_gui(player)
+        if flow then flow.destroy() end
+        flow=player.gui.top.add{type='flow',direction='vertical'}
+        flow.add{type='button',caption='Mine Planner'..(script.mod_name=='level' and '*' or '')}
+        local options=flow.add{type='frame',direction='vertical',visible=false}
+        local opfields=options.add{type='table',column_count=2}
+        opfields.add{type='button',caption='planner blueprint',tooltip='Replaces the mine planner blueprint in the player inventory.\nPlace the blueprint trigger the script.'}
+        opfields.add{type='textfield',numeric=true,text=67,tooltip='Blueprint size'}
+        opfields.add{type='label',caption='mining productivity[10%]',tooltip='Mining productivity from research\nNo research => 0\nMining Productivity 1 => 1'}
+        opfields.add{type='textfield',numeric=true,text=(player.force.mining_drill_productivity_bonus or 0)*10}
+        opfields.add{type='label',caption='longevity',tooltip='Affect the drill placement script output choice of drill count'}
+        opfields.add{type='slider',minimum_value=-5,maximum_value=5,value=0.00000001,value_step=1}
+        opfields.add{type='checkbox',caption='output targets [belt]',tooltip='Force exact number of output belts.\nIf set, the build script will try and exactly reach one of the output targets from the list.',state=false}
+        opfields.add{type='textfield',text='0.5,1,1.5,2,3,4,6,8,10,12,14,16'}
+        local opelems=options.add{type='table',column_count=7}
+        opelems.add{type='choose-elem-button',elem_type='item',item='small-electric-pole',elem_filters={{filter='subgroup',subgroup='energy-pipe-distribution'}}}
+        opelems.add{type='choose-elem-button',elem_type='item',item='transport-belt',elem_filters={{filter='subgroup',subgroup='belt'}}}
+        opelems.add{type='choose-elem-button',elem_type='entity',entity='electric-mining-drill',elem_filters={{filter='type',type='mining-drill'}}}
+        local ceb=opelems.add{type='choose-elem-button',elem_type='item',elem_filters={{filter='type',type='module'}}}
+        opelems.add{type='button',caption='->',style=ceb.style.name,tooltip='copy module'}
+        opelems.add{type='choose-elem-button',elem_type='item',elem_filters={{filter='type',type='module'}}}
+        opelems.add{type='choose-elem-button',elem_type='item',elem_filters={{filter='type',type='module'}}}
+        options.add{type='checkbox',caption='cheat_mode',state=player.cheat_mode,tooltip='Create entities instead of ghosts. Add electric interface, infinity pipe, and infinity chests'}
+    end)
 end
 local function read_params(player)
     local flow=find_gui(player)
@@ -1328,7 +1330,7 @@ end)
 script.on_event(defines.events.on_built_entity,on_build)
 local function update_produ_field(event)
     for _,player in pairs(game.players) do
-        if event.research.force==player.force then
+        if event.research and event.research.force==player.force then
             local flow=find_gui(player)
             if flow then
                 flow.children[2].children[1].children[4].text=(player.force.mining_drill_productivity_bonus or 0)*10
@@ -1336,8 +1338,8 @@ local function update_produ_field(event)
         end
     end
 end
-script.on_event(defines.events.on_technology_effects_reset,update_produ_field)
-script.on_event(defines.events.on_research_finished,update_produ_field)
+script.on_event(defines.events.on_technology_effects_reset,function() pcall(update_produ_field) end)
+script.on_event(defines.events.on_research_finished,function() pcall(update_produ_field) end)
 local function update_cheat_mode(event)
     local player=game.players[event.player_index]
     local flow=find_gui(player)
@@ -1345,6 +1347,6 @@ local function update_cheat_mode(event)
         flow.children[2].children[3].state=player.cheat_mode
     end
 end
-script.on_event(defines.events.on_player_cheat_mode_enabled,update_cheat_mode)
-script.on_event(defines.events.on_player_cheat_mode_disabled,update_cheat_mode)
+script.on_event(defines.events.on_player_cheat_mode_enabled,function() pcall(update_cheat_mode) end)
+script.on_event(defines.events.on_player_cheat_mode_disabled,function() pcall(update_cheat_mode) end)
 if game and game.players then setup_gui(game.player) insert_blueprint(game.player,67) end
