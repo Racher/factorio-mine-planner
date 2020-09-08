@@ -25,8 +25,11 @@ local function build_main(params)
     end
     drill_props.consumption=max(drill_props.consumption,0.2)
     local ubelt_name=params.belt_name and params.belt_name:gsub('transport','underground')
+    ubelt_name = game.entity_prototypes[ubelt_name] and ubelt_name or 'express-transport-belt'
     local loader_name=params.belt_name and params.belt_name:gsub('transport%-belt','loader')
+    loader_name = game.entity_prototypes[loader_name] and loader_name or 'express-loader'
     local splitter_name=params.belt_name and params.belt_name:gsub('transport%-belt','splitter')
+    splitter_name = game.entity_prototypes[splitter_name] and splitter_name or 'express-splitter'
     local drill_name=params.drill_name
     local drill_proto=game.entity_prototypes[drill_name]
     drill_props.speed=drill_props.speed*drill_proto.mining_speed
@@ -1207,6 +1210,15 @@ local function find_gui(player)
 end
 local function setup_gui(player)
     pcall(function()
+        local function lookup_belts()
+            local belts={}
+            for k,v in pairs(game.entity_prototypes) do
+                if v.belt_speed and string.find(k,'transport') then
+                    table.insert(belts,k)
+                end
+            end
+            return belts
+        end
         local flow=find_gui(player)
         if flow then flow.destroy() end
         flow=player.gui.top.add{type='flow',direction='vertical'}
@@ -1223,7 +1235,7 @@ local function setup_gui(player)
         opfields.add{type='textfield',text='0.5,1,1.5,2,3,4,6,8,10,12,14,16'}
         local opelems=options.add{type='table',column_count=7}
         opelems.add{type='choose-elem-button',elem_type='item',item='small-electric-pole',elem_filters={{filter='subgroup',subgroup='energy-pipe-distribution'}}}
-        opelems.add{type='choose-elem-button',elem_type='item',item='transport-belt',elem_filters={{filter='subgroup',subgroup='belt'}}}
+        opelems.add{type='choose-elem-button',elem_type='entity',entity='transport-belt',elem_filters={{filter='name',name=lookup_belts()}}}
         opelems.add{type='choose-elem-button',elem_type='entity',entity='electric-mining-drill',elem_filters={{filter='type',type='mining-drill'}}}
         local ceb=opelems.add{type='choose-elem-button',elem_type='item',elem_filters={{filter='type',type='module'}}}
         opelems.add{type='button',caption='->',style=ceb.style.name,tooltip='copy module'}
